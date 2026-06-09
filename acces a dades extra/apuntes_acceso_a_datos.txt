@@ -1,0 +1,41 @@
+APUNTES DE ACCESO A DATOS (MÓDULO MP0486)
+========================================
+
+1. INTRODUCCIÓN A JDBC (JAVA DATABASE CONNECTIVITY)
+---------------------------------------------------
+JDBC es la API estándar de Java para interactuar con bases de datos relacionales. Permite ejecutar sentencias SQL, recuperar resultados y propagar cambios de forma independiente al motor de base de datos utilizado (MySQL, PostgreSQL, Oracle, etc.), gracias al uso de controladores (drivers) específicos de cada fabricante.
+
+Componentes clave de JDBC:
+- DriverManager: Clase que gestiona la lista de controladores de bases de datos. Empareja las peticiones de conexión de las aplicaciones con el driver correspondiente.
+- Connection: Interfaz que representa una sesión física con una base de datos específica. Se obtiene mediante DriverManager.getConnection(url, usuario, password).
+- Statement: Interfaz utilizada para ejecutar sentencias SQL estáticas (sin parámetros) y devolver los resultados que genera.
+- PreparedStatement: Interfaz que hereda de Statement y se utiliza para ejecutar sentencias SQL parametrizadas o precompiladas.
+- ResultSet: Tabla de datos que representa el conjunto de resultados de una base de datos, generado normalmente al ejecutar una consulta que recupera información. Posee un cursor que apunta a la fila actual de datos.
+
+Diferencias críticas entre Statement y PreparedStatement:
+1. Precompilación: PreparedStatement precompila la consulta SQL en el servidor de la base de datos. Si la consulta se ejecuta muchas veces con distintos parámetros, se ahorra el tiempo de compilación y optimización de la consulta en cada llamada, mejorando notablemente el rendimiento. Statement compila la consulta cada vez que se invoca.
+2. Seguridad (Inyección SQL): PreparedStatement evita ataques de inyección SQL automáticamente. Al asignar los parámetros mediante métodos setter (como setString o setInt), el controlador JDBC escapa y trata los valores de entrada estrictamente como datos, nunca como código SQL ejecutable. Statement concatena cadenas directamente, lo que permite que un usuario malintencionado altere la estructura de la consulta SQL original.
+3. Legibilidad: PreparedStatement utiliza marcadores de posición (?) en lugar de concatenaciones complejas de cadenas con comillas simples y dobles, haciendo el código mucho más limpio y fácil de mantener.
+
+2. POOLS DE CONEXIONES (CONNECTION POOLS)
+-----------------------------------------
+En una aplicación real, abrir y cerrar una conexión física a la base de datos para cada petición del usuario es una operación extremadamente costosa. Involucra un intercambio de red (TCP handshake), autenticación de usuario, asignación de memoria y creación de un hilo en el servidor de base de datos.
+
+Un Pool de Conexiones (como HikariCP o Apache DBCP) resuelve este problema manteniendo un conjunto (pool) de conexiones físicas a la base de datos previamente abiertas y listas para ser usadas:
+- Cuando la aplicación solicita una conexión, el pool toma una que esté libre y se la entrega inmediatamente (operación casi instantánea).
+- Cuando la aplicación "cierra" la conexión llamando a connection.close(), la conexión no se destruye físicamente, sino que se devuelve al pool de conexiones disponibles para que otra parte de la aplicación pueda reutilizarla.
+- Esto reduce drásticamente la latencia de las consultas, optimiza el uso de recursos del servidor y evita la saturación de conexiones en el motor de base de datos.
+
+3. HIBERNATE Y EL MAPEO OBJETO-RELACIONAL (ORM)
+-----------------------------------------------
+Hibernate es un framework de Mapeo Objeto-Relacional (ORM) para Java. Su objetivo es mapear las tablas de una base de datos relacional a las clases de programación orientada a objetos (POJO) de Java, permitiendo interactuar con la base de datos utilizando objetos en lugar de escribir sentencias SQL manuales.
+
+Conceptos fundamentales de Hibernate:
+- SessionFactory: Es un objeto pesado y seguro para subprocesos (thread-safe) que se crea una sola vez durante el inicio de la aplicación. Lee los archivos de configuración y mapeos y se encarga de crear las instancias de Session.
+- Session: Es un objeto ligero y no seguro para subprocesos (non-thread-safe) que representa una unidad de trabajo con la base de datos. Se utiliza para abrir transacciones, guardar, actualizar, eliminar y buscar entidades. Debe abrirse y cerrarse rápidamente en cada hilo o petición.
+
+Ciclo de vida de las entidades en Hibernate:
+Las instancias de clases mapeadas (entidades) pueden estar en uno de los siguientes tres estados:
+1. Transient (Transitorio): El objeto se acaba de crear en memoria con el operador 'new' y no está asociado con ninguna sesión de Hibernate. No tiene representación (fila) en la base de datos ni clave primaria asignada (ID). Si se destruye en memoria, se pierde definitivamente.
+2. Persistent (Persistente): El objeto está asociado con una sesión activa de Hibernate y tiene una fila correspondiente en la base de datos. Hibernate realiza un seguimiento automático de cualquier cambio en las propiedades de este objeto. Al realizar transacciones o flujos de persistencia (commit/flush), Hibernate sincroniza automáticamente estos cambios en la base de datos mediante sentencias SQL UPDATE.
+3. Detached (Disociado): El objeto tiene una clave primaria correspondiente en la base de datos (fue persistente en algún momento), pero la sesión de Hibernate a la que estaba asociado se ha cerrado o el objeto ha sido desalojado de ella (mediante session.close() o session.clear()). Hibernate ya no realiza el seguimiento de sus cambios. Para guardar sus cambios, debe ser reasociado a una sesión activa (por ejemplo, usando session.merge(objeto)).
